@@ -2,25 +2,69 @@
 <html lang="ru" style="background:#060a12;height:100%;overflow:hidden">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- viewport-fit=cover убирает белые полосы на iPhone с чёлкой -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover">
+<!-- Цвет вкладки браузера / адресной строки -->
 <meta name="theme-color" content="#060a12">
+<!-- iOS: "Добавить на экран" → запускается как приложение без браузерного хрома -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="TradeX Pro">
+<!-- Android Chrome -->
 <meta name="mobile-web-app-capable" content="yes">
+<!-- MS / Samsung -->
+<meta name="msapplication-navbutton-color" content="#060a12">
+<meta name="msapplication-TileColor" content="#060a12">
+<!-- PWA Manifest (display:fullscreen убирает адресную строку при установке) -->
 <link rel="manifest" id="pwa-manifest">
 <title>TradeX Pro</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
+// ── PWA Manifest с display:fullscreen ──
 (function(){
-  const m={name:'TradeX Pro',short_name:'TradeX',start_url:'./',display:'fullscreen',background_color:'#060a12',theme_color:'#060a12',orientation:'portrait-primary'};
+  const m={
+    name:'TradeX Pro',short_name:'TradeX',
+    start_url:location.href,
+    display:'fullscreen',          // ← ключевое: полный экран без браузера
+    background_color:'#060a12',
+    theme_color:'#060a12',
+    orientation:'any',
+    icons:[{
+      src:"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23060a12' rx='20'/%3E%3Ctext y='.9em' font-size='80'%3E📈%3C/text%3E%3C/svg%3E",
+      sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'
+    }]
+  };
   const blob=new Blob([JSON.stringify(m)],{type:'application/json'});
   const el=document.getElementById('pwa-manifest');
   if(el)el.href=URL.createObjectURL(blob);
 })();
+ 
+// ── Service Worker — офлайн кэш ──
 if('serviceWorker' in navigator){
-  const swCode=`const C='tx2';self.addEventListener('install',e=>{self.skipWaiting();});self.addEventListener('activate',e=>{e.waitUntil(self.clients.claim());});self.addEventListener('fetch',e=>{if(!e.request.url.startsWith('http'))return;e.respondWith(caches.open(C).then(cache=>cache.match(e.request).then(r=>{const net=fetch(e.request).then(res=>{if(res&&res.status===200&&res.type==='basic'){cache.put(e.request,res.clone());}return res;}).catch(()=>r||new Response('',{status:503}));return r||net;})));});`;
-  try{const b=new Blob([swCode],{type:'text/javascript'});navigator.serviceWorker.register(URL.createObjectURL(b));}catch(e){}
+  const sw=`
+const V='tx3';
+self.addEventListener('install',e=>{self.skipWaiting();});
+self.addEventListener('activate',e=>{
+  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+});
+self.addEventListener('fetch',e=>{
+  if(!e.request.url.startsWith('http'))return;
+  e.respondWith(
+    caches.open(V).then(cache=>
+      cache.match(e.request).then(cached=>{
+        const fresh=fetch(e.request).then(res=>{
+          if(res&&res.ok&&res.type==='basic')cache.put(e.request,res.clone());
+          return res;
+        }).catch(()=>cached);
+        return cached||fresh;
+      })
+    )
+  );
+});`;
+  try{
+    const b=new Blob([sw],{type:'text/javascript'});
+    navigator.serviceWorker.register(URL.createObjectURL(b));
+  }catch(e){}
 }
 </script>
 <style>
@@ -617,6 +661,38 @@ body{
  
 </div><!-- /app -->
  
+<!-- Кнопка "На весь экран" (появляется если вышли из fullscreen на ПК) -->
+<button id="fs-btn" onclick="goFullscreen()" style="
+  display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:#0b101c;border:1px solid #00e5b8;border-radius:12px;
+  color:#00e5b8;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;
+  padding:16px 32px;cursor:pointer;z-index:9999;letter-spacing:1px;
+  box-shadow:0 0 40px rgba(0,229,184,.2);
+">⛶ ПОЛНЫЙ ЭКРАН</button>
+ 
+<!-- Баннер "Добавить на экран" для телефона -->
+<div id="install-banner" style="
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:9998;
+  background:#0b101c;border-top:1px solid #1e2d45;
+  padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px);
+  flex-direction:column;gap:8px;
+">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="font-size:28px">📈</div>
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:700;color:#dde6f4">Играть без браузерной строки</div>
+      <div style="font-size:10px;color:#4a6080;margin-top:2px">
+        iOS: нажми <b style="color:#dde6f4">Поделиться → На экран «Домой»</b><br>
+        Android: <b style="color:#dde6f4">Меню ⋮ → Добавить на главный экран</b>
+      </div>
+    </div>
+    <button onclick="document.getElementById('install-banner').style.display='none'" style="
+      background:#1e2b3d;border:1px solid #1e2d45;border-radius:6px;
+      color:#4a6080;font-size:16px;padding:6px 10px;cursor:pointer;
+    ">✕</button>
+  </div>
+</div>
+ 
 <div id="toast"></div>
 <div id="popup-overlay" onclick="closePopup()">
   <div id="popup-box" onclick="event.stopPropagation()">
@@ -627,32 +703,78 @@ body{
  
 <script>
 // ═══════════════════════════════════════════════════════
-//  TG INIT
+//  TELEGRAM init (когда открыто внутри Telegram)
 // ═══════════════════════════════════════════════════════
 if(window.Telegram?.WebApp){
   const tg=Telegram.WebApp;
   tg.ready();
   tg.expand();
-  // Hide header color (makes status bar black/transparent)
   try{tg.setHeaderColor('#060a12');}catch(e){}
   try{tg.setBackgroundColor('#060a12');}catch(e){}
   try{tg.disableVerticalSwipes();}catch(e){}
   try{tg.enableClosingConfirmation();}catch(e){}
-  // Re-expand if user accidentally collapses
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)tg.expand();});
 }
-// Prevent ALL default touch scroll/bounce on body
+ 
+// ═══════════════════════════════════════════════════════
+//  FULLSCREEN API — для ПК-браузера (GitHub Pages)
+//  Запрашиваем полный экран при первом тапе/клике
+// ═══════════════════════════════════════════════════════
+function goFullscreen(){
+  const el=document.documentElement;
+  const req=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
+  if(req)req.call(el).catch(()=>{});
+}
+// Авто-запрос при первом взаимодействии (браузер требует user gesture)
+let fsRequested=false;
+function requestFSOnce(){
+  if(fsRequested)return;
+  fsRequested=true;
+  goFullscreen();
+}
+document.addEventListener('click',requestFSOnce,{once:true});
+document.addEventListener('touchstart',requestFSOnce,{once:true,passive:true});
+// При выходе из fullscreen — показываем кнопку возврата
+document.addEventListener('fullscreenchange',()=>{
+  const btn=document.getElementById('fs-btn');
+  if(btn)btn.style.display=document.fullscreenElement?'none':'flex';
+});
+document.addEventListener('webkitfullscreenchange',()=>{
+  const btn=document.getElementById('fs-btn');
+  if(btn)btn.style.display=document.webkitFullscreenElement?'none':'flex';
+});
+ 
+// ═══════════════════════════════════════════════════════
+//  INSTALL BANNER — для телефона (показываем подсказку
+//  "Добавить на экран" если не в standalone/fullscreen режиме)
+// ═══════════════════════════════════════════════════════
+(function(){
+  const isStandalone=window.matchMedia('(display-mode: fullscreen)').matches||
+    window.matchMedia('(display-mode: standalone)').matches||
+    window.navigator.standalone===true||
+    window.Telegram?.WebApp;
+  if(isStandalone)return;
+ 
+  // Показываем баннер через 2 секунды после загрузки
+  setTimeout(()=>{
+    const banner=document.getElementById('install-banner');
+    if(banner)banner.style.display='flex';
+  },2000);
+})();
+ 
+// Prevent bounce / pull-to-refresh на теле страницы
 document.addEventListener('touchmove',e=>{
-  // Allow scroll only inside explicitly scrollable elements
   let el=e.target;
   while(el&&el!==document.body){
-    if(el.scrollHeight>el.clientHeight&&getComputedStyle(el).overflowY!=='hidden'){return;}
+    const style=getComputedStyle(el);
+    if(el.scrollHeight>el.clientHeight&&style.overflowY!=='hidden'&&style.overflowY!=='visible')return;
     el=el.parentElement;
   }
   e.preventDefault();
 },{passive:false});
-// Prevent rubber-band / pull-to-refresh
-document.body.addEventListener('touchstart',e=>{if(e.touches.length>1)e.preventDefault();},{passive:false});
+document.body.addEventListener('touchstart',e=>{
+  if(e.touches.length>1)e.preventDefault();
+},{passive:false});
  
 // ═══════════════════════════════════════════════════════
 //  ASSETS
@@ -1146,226 +1268,308 @@ function toggleChartType(){
 function renderChart(){
   const canvas=document.getElementById('c');
   const wrap=document.getElementById('canvas-wrap');
-  const W=wrap.clientWidth,H=wrap.clientHeight;
+  const W=wrap.clientWidth, H=wrap.clientHeight;
   if(!W||!H)return;
  
-  // DPR-aware canvas for crisp rendering on retina/mobile
-  const dpr=window.devicePixelRatio||1;
+  // Ретина-чёткость — умножаем на devicePixelRatio
+  const dpr=Math.min(window.devicePixelRatio||1, 3);
   canvas.width=Math.floor(W*dpr);
   canvas.height=Math.floor(H*dpr);
   canvas.style.width=W+'px';
   canvas.style.height=H+'px';
   const ctx=canvas.getContext('2d');
   ctx.scale(dpr,dpr);
+  ctx.fillStyle='#060a12';
+  ctx.fillRect(0,0,W,H);
  
-  ctx.fillStyle='#060a12';ctx.fillRect(0,0,W,H);
+  const rawCandles=getCandles(S.currentTicker,S.tf);
+  if(!rawCandles||rawCandles.length<3)return;
  
-  let candles=getCandles(S.currentTicker,S.tf);
-  if(candles.length<2)return;
+  // Хайкен-Аши конвертируем из сырых свечей
+  const isHA=S.chartType==='heikin';
+  const isLine=S.chartType==='line';
+  const displayCandles=isHA ? toHA(rawCandles) : rawCandles;
  
-  // For Heikin-Ashi: always convert from raw candles
-  let displayCandles=candles;
-  if(S.chartType==='heikin'){
-    displayCandles=toHA(candles);
-  }
- 
-  // Adaptive candle width: show ~50 candles by default, respect zoom
-  // On mobile (W<500) ensure minimum 7px candle width for readability
+  // ── Размер свечей ──
+  // Мобиль (<600px): показываем ~30 свечей, минимум 8px
+  // ПК (>=600px):    показываем ~50 свечей, минимум 5px
   const isMobile=W<600;
-  const targetVisible=isMobile?40:60;
-  const baseCandles=displayCandles.length;
-  // cW = canvas_width / targetVisible * zoomLevel
-  const rawCW=(W/targetVisible)*zoomLvl;
-  const cW=Math.max(isMobile?7:5, Math.min(40, Math.floor(rawCW)));
-  const gap=Math.max(1,Math.floor(cW*.18));
-  const totalW=(cW+gap)*baseCandles;
+  const visTarget=isMobile ? 30 : 50;
+  const rawCW=(W/visTarget)*zoomLvl;
+  const cW=Math.max(isMobile?8:5, Math.min(isMobile?32:40, Math.floor(rawCW)));
+  const gap=Math.max(1, Math.floor(cW*0.2));
+  const step=cW+gap;
+ 
+  const totalW=step*displayCandles.length;
   const maxOff=Math.max(0,totalW-W);
   chartOffset=Math.max(0,Math.min(chartOffset,maxOff));
-  const startIdx=Math.max(0,Math.floor(chartOffset/(cW+gap)));
-  const visCount=Math.ceil(W/(cW+gap))+2;
-  const vis=displayCandles.slice(startIdx,startIdx+visCount);
+ 
+  const startIdx=Math.max(0,Math.floor(chartOffset/step));
+  const visCount=Math.ceil(W/step)+3;
+  const vis=displayCandles.slice(startIdx, startIdx+visCount);
   if(!vis.length)return;
  
-  const pR=isMobile?58:64,pT=28,pB=isMobile?48:52,pL=0;
+  // Отступы: справа — цены, снизу — объём
+  const pR=isMobile?62:68;
+  const pT=30;
+  const pB=isMobile?44:50;
   const cH=H-pT-pB;
  
+  // Диапазон цен видимых свечей
   const allP=vis.flatMap(c=>[c.h,c.l]);
-  const minP=Math.min(...allP),maxP=Math.max(...allP);
+  const minP=Math.min(...allP), maxP=Math.max(...allP);
   const rng=maxP-minP||1;
-  const pad=rng*.06;
-  const lo=minP-pad,hi=maxP+pad,rng2=hi-lo;
+  const pad=rng*0.07;
+  const lo=minP-pad, hi=maxP+pad, rng2=hi-lo;
  
-  function py(p){return pT+(1-(p-lo)/rng2)*cH;}
-  function cx(i){return (i-startIdx)*(cW+gap)-(chartOffset%(cW+gap))+pL;}
+  const py=p=>pT+(1-(p-lo)/rng2)*cH;
+  const cx=i=>(i-startIdx)*step-(chartOffset%step);
  
-  // Grid lines + price labels
-  const gridCount=5;
-  for(let i=0;i<=gridCount;i++){
-    const y=pT+(cH/gridCount)*i;
-    const p2=hi-(rng2/gridCount)*i;
-    ctx.strokeStyle='rgba(30,45,69,.9)';ctx.lineWidth=.5;
-    ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W-pR,y);ctx.stroke();
+  // ── Сетка ──
+  const gridN=5;
+  for(let g=0;g<=gridN;g++){
+    const gy=pT+(cH/gridN)*g;
+    const gp=hi-(rng2/gridN)*g;
+    ctx.strokeStyle='rgba(26,40,58,0.9)';
+    ctx.lineWidth=0.5;
+    ctx.setLineDash([3,6]);
+    ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W-pR,gy);ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle='#4a6080';ctx.font=`${isMobile?8:9}px JetBrains Mono`;ctx.textAlign='left';
-    ctx.fillText('$'+fmt(p2),W-pR+3,y+3);
+    ctx.fillStyle='#3d5570';
+    ctx.font=`${isMobile?8:9}px JetBrains Mono`;
+    ctx.textAlign='left';
+    ctx.fillText('$'+fmt(gp), W-pR+3, gy+3.5);
   }
  
-  // Volume bars
-  const maxVol=Math.max(...vis.map(c=>c.v));
+  // ── Объём ──
+  const maxVol=Math.max(...vis.map(c=>c.v))||1;
   vis.forEach((c,i)=>{
     const x=cx(startIdx+i);
     if(x+cW<0||x>W)return;
-    const bH=(c.v/maxVol)*pB*.75;
-    ctx.fillStyle=c.c>=c.o?'rgba(0,229,184,.15)':'rgba(255,48,96,.15)';
-    ctx.fillRect(x,H-pB+4,cW,bH);
+    const bH=Math.max(1,(c.v/maxVol)*pB*0.7);
+    ctx.fillStyle=c.c>=c.o?'rgba(0,229,184,.12)':'rgba(255,48,96,.12)';
+    ctx.fillRect(x, H-pB+3, cW, bH);
   });
  
-  // MA 20 & 50 (on original candles for accuracy)
+  // ── Индикаторы (MA / BB) ──
   const all=displayCandles;
-  const ma20arr=all.map((_,i)=>{
-    if(i<19)return null;
-    return all.slice(i-19,i+1).reduce((s,c)=>s+c.c,0)/20;
-  });
-  const ma50arr=all.map((_,i)=>{
-    if(i<49)return null;
-    return all.slice(i-49,i+1).reduce((s,c)=>s+c.c,0)/50;
-  });
-  // Bollinger Bands
+  const ma20arr=all.map((_,i)=>i<19?null:all.slice(i-19,i+1).reduce((s,c)=>s+c.c,0)/20);
+  const ma50arr=all.map((_,i)=>i<49?null:all.slice(i-49,i+1).reduce((s,c)=>s+c.c,0)/50);
   const bbArr=all.map((_,i)=>{
     if(i<19)return null;
-    const slice=all.slice(i-19,i+1).map(c=>c.c);
-    const mean=slice.reduce((s,v)=>s+v,0)/20;
-    const std=Math.sqrt(slice.reduce((s,v)=>s+(v-mean)**2,0)/20);
-    return{mid:mean,up:mean+2*std,dn:mean-2*std};
+    const sl=all.slice(i-19,i+1).map(c=>c.c);
+    const m=sl.reduce((s,v)=>s+v,0)/20;
+    const sd=Math.sqrt(sl.reduce((s,v)=>s+(v-m)**2,0)/20);
+    return{up:m+2*sd, mid:m, dn:m-2*sd};
   });
  
-  function drawLine(arr,col,alpha=.8,dashed=false){
-    ctx.strokeStyle=col;ctx.lineWidth=1;ctx.globalAlpha=alpha;
-    if(dashed)ctx.setLineDash([3,4]);
+  function drawPolyline(arr,col,alpha,dashed=false,lw=1){
+    ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.globalAlpha=alpha;
+    if(dashed)ctx.setLineDash([3,4]);else ctx.setLineDash([]);
     ctx.beginPath();let first=true;
-    arr.forEach((v,i)=>{
-      if(v===null||i<startIdx||i>startIdx+visCount+1)return;
-      const x=cx(i)+cW/2,y=py(typeof v==='object'?v.mid:v);
+    for(let i=startIdx;i<=startIdx+visCount+1&&i<arr.length;i++){
+      const v=arr[i];if(v===null||v===undefined)continue;
+      const vv=typeof v==='object'?v.mid:v;
+      const x=cx(i)+cW/2, y=py(vv);
       if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);
-    });
+    }
     ctx.stroke();ctx.globalAlpha=1;ctx.setLineDash([]);
   }
  
-  // BB fill
-  ctx.beginPath();let firstBB=true;
-  bbArr.forEach((v,i)=>{
-    if(!v||i<startIdx||i>startIdx+visCount+1)return;
-    const x=cx(i)+cW/2,y=py(v.up);
-    if(firstBB){ctx.moveTo(x,y);firstBB=false;}else ctx.lineTo(x,y);
-  });
-  [...bbArr].reverse().forEach((v,ri)=>{
-    const i=bbArr.length-1-ri;
-    if(!v||i<startIdx||i>startIdx+visCount+1)return;
+  // BB заливка
+  ctx.beginPath();let fbFirst=true;
+  for(let i=startIdx;i<=startIdx+visCount+1&&i<bbArr.length;i++){
+    const v=bbArr[i];if(!v)continue;
+    if(fbFirst){ctx.moveTo(cx(i)+cW/2,py(v.up));fbFirst=false;}
+    else ctx.lineTo(cx(i)+cW/2,py(v.up));
+  }
+  for(let i=Math.min(startIdx+visCount+1,bbArr.length-1);i>=startIdx;i--){
+    const v=bbArr[i];if(!v)continue;
     ctx.lineTo(cx(i)+cW/2,py(v.dn));
-  });
-  ctx.closePath();ctx.fillStyle='rgba(33,150,243,.05)';ctx.fill();
-  drawLine(bbArr.map(v=>v?.up??null),'rgba(33,150,243,.4)',.7,true);
-  drawLine(bbArr.map(v=>v?.dn??null),'rgba(33,150,243,.4)',.7,true);
-  drawLine(ma20arr,'rgba(255,193,7,.7)',.7);
-  drawLine(ma50arr,'rgba(168,85,247,.6)',.6);
+  }
+  ctx.closePath();ctx.fillStyle='rgba(33,150,243,.04)';ctx.fill();
+  drawPolyline(bbArr.map(v=>v?v.up:null),'rgba(33,150,243,.35)',0.7,true);
+  drawPolyline(bbArr.map(v=>v?v.dn:null),'rgba(33,150,243,.35)',0.7,true);
+  drawPolyline(ma20arr,'rgba(255,193,7,.8)',0.8,false,1);
+  drawPolyline(ma50arr,'rgba(168,85,247,.7)',0.7,false,1);
  
-  if(S.chartType==='line'){
-    ctx.beginPath();let fl2=true;
+  // ── РИСУЕМ СВЕЧИ / HA / LINE ──
+  if(isLine){
+    // Линейный график
+    const grad=ctx.createLinearGradient(0,pT,0,H-pB);
+    grad.addColorStop(0,'rgba(33,150,243,.22)');
+    grad.addColorStop(1,'transparent');
+    ctx.beginPath();let fl=true;
+    vis.forEach((c,i)=>{
+      const x=cx(startIdx+i)+cW/2, y=py(c.c);
+      if(fl){ctx.moveTo(x,H-pB);ctx.lineTo(x,y);fl=false;}else ctx.lineTo(x,y);
+    });
+    ctx.lineTo(cx(startIdx+vis.length-1)+cW/2,H-pB);
+    ctx.closePath();ctx.fillStyle=grad;ctx.fill();
+    ctx.beginPath();fl=true;
     vis.forEach((c,i)=>{
       const x=cx(startIdx+i)+cW/2,y=py(c.c);
-      if(fl2){ctx.moveTo(x,y);fl2=false;}else ctx.lineTo(x,y);
+      if(fl){ctx.moveTo(x,y);fl=false;}else ctx.lineTo(x,y);
     });
-    ctx.strokeStyle='#2196f3';ctx.lineWidth=2;ctx.stroke();
-    const grad=ctx.createLinearGradient(0,pT,0,H-pB);
-    grad.addColorStop(0,'rgba(33,150,243,.25)');grad.addColorStop(1,'transparent');
-    ctx.beginPath();fl2=true;
-    vis.forEach((c,i)=>{const x=cx(startIdx+i)+cW/2,y=py(c.c);if(fl2){ctx.moveTo(x,H-pB);ctx.lineTo(x,y);fl2=false;}else ctx.lineTo(x,y);});
-    ctx.lineTo(cx(startIdx+vis.length-1)+cW/2,H-pB);ctx.closePath();
-    ctx.fillStyle=grad;ctx.fill();
-  } else {
-    // Candle or Heikin-Ashi (same drawing code — toHA already converted)
+    ctx.strokeStyle='#2196f3';ctx.lineWidth=2;ctx.setLineDash([]);ctx.stroke();
+ 
+  } else if(isHA){
+    // ═══ ХАЙКЕН-АШИ — специальный стиль для мобиля ═══
+    // Особенности HA: нет нижней тени у бычьей свечи / нет верхней у медвежьей
+    // Рисуем с округлыми телами, чёткими цветами, толстыми тенями
+    const bodyW=Math.max(cW-2, isMobile?6:4); // тело шире чем у обычных
     vis.forEach((c,i)=>{
       const x=cx(startIdx+i);
       if(x+cW<-2||x>W+2)return;
-      const isUp=c.c>=c.o;
-      const colUp='#00e5b8';
-      const colDn='#ff3060';
-      const col=isUp?colUp:colDn;
       const midX=x+cW/2;
+      const isUp=c.c>=c.o;
  
-      // High-Low wick
-      const wickY1=py(c.h);
-      const wickY2=py(c.l);
-      ctx.strokeStyle=col;ctx.lineWidth=isMobile?1.5:1;ctx.setLineDash([]);
-      ctx.beginPath();ctx.moveTo(midX,wickY1);ctx.lineTo(midX,wickY2);ctx.stroke();
+      // Цвета HA — ярче чем обычные свечи
+      const fillCol=isUp ? '#00e5b8' : '#ff3060';
+      const darkFill=isUp ? 'rgba(0,229,184,0.15)' : 'rgba(255,48,96,0.15)';
  
-      // Body
       const bodyTop=py(Math.max(c.o,c.c));
       const bodyBot=py(Math.min(c.o,c.c));
-      const bodyH=Math.max(isMobile?2:1.5, bodyBot-bodyTop);
+      const bodyH=Math.max(isMobile?2.5:2, bodyBot-bodyTop);
+ 
+      const wickTop=py(c.h);
+      const wickBot=py(c.l);
+ 
+      // Тень (wick) — тонкая линия
+      ctx.strokeStyle=fillCol;
+      ctx.lineWidth=isMobile?1.5:1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(midX, wickTop);
+      ctx.lineTo(midX, wickBot);
+      ctx.stroke();
+ 
+      // Тело свечи — прямоугольник с закруглёнными углами
+      const bx=x+Math.floor((cW-bodyW)/2);
+      ctx.fillStyle=fillCol;
+ 
+      if(bodyH>4&&bodyW>4){
+        // Скруглённые углы для красоты
+        const r=Math.min(2, bodyW/4, bodyH/4);
+        ctx.beginPath();
+        ctx.moveTo(bx+r, bodyTop);
+        ctx.lineTo(bx+bodyW-r, bodyTop);
+        ctx.quadraticCurveTo(bx+bodyW, bodyTop, bx+bodyW, bodyTop+r);
+        ctx.lineTo(bx+bodyW, bodyTop+bodyH-r);
+        ctx.quadraticCurveTo(bx+bodyW, bodyTop+bodyH, bx+bodyW-r, bodyTop+bodyH);
+        ctx.lineTo(bx+r, bodyTop+bodyH);
+        ctx.quadraticCurveTo(bx, bodyTop+bodyH, bx, bodyTop+bodyH-r);
+        ctx.lineTo(bx, bodyTop+r);
+        ctx.quadraticCurveTo(bx, bodyTop, bx+r, bodyTop);
+        ctx.closePath();
+        ctx.fill();
+        // Обводка чуть темнее
+        ctx.strokeStyle=fillCol;
+        ctx.lineWidth=0.8;
+        ctx.stroke();
+      } else {
+        ctx.fillRect(bx, bodyTop, bodyW, Math.max(bodyH,1.5));
+      }
+ 
+      // Для нулевого тела (дожи) — горизонтальная линия
+      if(bodyH<1.5){
+        ctx.strokeStyle=fillCol;
+        ctx.lineWidth=isMobile?2:1.5;
+        ctx.beginPath();
+        ctx.moveTo(bx, bodyTop);
+        ctx.lineTo(bx+bodyW, bodyTop);
+        ctx.stroke();
+      }
+    });
+ 
+  } else {
+    // ═══ ОБЫЧНЫЕ ЯПОНСКИЕ СВЕЧИ ═══
+    vis.forEach((c,i)=>{
+      const x=cx(startIdx+i);
+      if(x+cW<-2||x>W+2)return;
+      const midX=x+cW/2;
+      const isUp=c.c>=c.o;
+      const col=isUp?'#00e5b8':'#ff3060';
+ 
+      // Тень
+      ctx.strokeStyle=col;
+      ctx.lineWidth=isMobile?1.5:1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(midX, py(c.h));
+      ctx.lineTo(midX, py(c.l));
+      ctx.stroke();
+ 
+      // Тело
+      const bodyTop=py(Math.max(c.o,c.c));
+      const bodyH=Math.max(isMobile?2:1.5, Math.abs(py(c.o)-py(c.c)));
  
       if(cW>=3){
-        // Solid filled body
-        ctx.fillStyle=isUp?'rgba(0,229,184,.9)':'rgba(255,48,96,.9)';
-        ctx.fillRect(x+1,bodyTop,Math.max(cW-2,1),bodyH);
-        // Heikin-Ashi: add slight border to distinguish from regular
-        if(S.chartType==='heikin'){
-          ctx.strokeStyle=isUp?'rgba(0,229,184,1)':'rgba(255,48,96,1)';
+        ctx.fillStyle=isUp?'rgba(0,229,184,.88)':'rgba(255,48,96,.88)';
+        ctx.fillRect(x+1, bodyTop, Math.max(cW-2,1), bodyH);
+        if(!isUp){
+          ctx.strokeStyle='rgba(255,48,96,.5)';
           ctx.lineWidth=0.5;
-          ctx.strokeRect(x+1,bodyTop,Math.max(cW-2,1),bodyH);
+          ctx.strokeRect(x+1, bodyTop, Math.max(cW-2,1), bodyH);
         }
       } else {
-        // Very thin candle — just a line
-        ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,cW);
+        ctx.strokeStyle=col;ctx.lineWidth=1.5;
         ctx.beginPath();ctx.moveTo(midX,py(c.o));ctx.lineTo(midX,py(c.c));ctx.stroke();
       }
     });
   }
  
-  // Current price horizontal line
+  // ── Текущая цена — горизонтальная пунктирная линия ──
   const cp=S.prices[S.currentTicker];
   if(cp>=lo&&cp<=hi){
     const ly=py(cp);
-    ctx.setLineDash([5,4]);ctx.strokeStyle='rgba(220,230,245,.35)';ctx.lineWidth=.8;
+    ctx.setLineDash([5,4]);
+    ctx.strokeStyle='rgba(220,230,245,.3)';
+    ctx.lineWidth=0.8;
     ctx.beginPath();ctx.moveTo(0,ly);ctx.lineTo(W-pR,ly);ctx.stroke();
     ctx.setLineDash([]);
-    const lbl='$'+fmt(cp);
     ctx.font=`${isMobile?8:9}px JetBrains Mono`;
-    const lw=ctx.measureText(lbl).width+8;
-    ctx.fillStyle='#18212f';ctx.strokeStyle='rgba(220,230,245,.5)';ctx.lineWidth=.5;
-    roundRect(ctx,W-pR,ly-8,lw,16,3);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#dde6f4';ctx.textAlign='left';
-    ctx.fillText(lbl,W-pR+4,ly+4);
+    const lbl='$'+fmt(cp);
+    const lw=ctx.measureText(lbl).width+10;
+    ctx.fillStyle='#111826';
+    ctx.strokeStyle='rgba(0,229,184,.5)';
+    ctx.lineWidth=0.8;
+    roundRect(ctx,W-pR,ly-8,lw,16,3);
+    ctx.fill();ctx.stroke();
+    ctx.fillStyle='#00e5b8';
+    ctx.textAlign='left';
+    ctx.fillText(lbl, W-pR+5, ly+4);
   }
  
-  // Crosshair (desktop/long-press tooltip)
+  // ── Кроссхэир (ПК мышь / long-press мобиль) ──
   if(showCross&&crossX!==null){
-    const relIdx=Math.floor((crossX+chartOffset%(cW+gap))/(cW+gap));
+    const relIdx=Math.floor((crossX+chartOffset%step)/step);
     const absIdx=Math.max(0,Math.min(startIdx+relIdx,displayCandles.length-1));
     const cv2=displayCandles[absIdx];
-    ctx.strokeStyle='rgba(150,170,200,.45)';ctx.lineWidth=.7;ctx.setLineDash([]);
+ 
+    ctx.strokeStyle='rgba(140,165,200,.4)';
+    ctx.lineWidth=0.7;ctx.setLineDash([]);
     ctx.beginPath();ctx.moveTo(crossX,pT);ctx.lineTo(crossX,H-pB);ctx.stroke();
     if(crossY!==null){
       ctx.beginPath();ctx.moveTo(0,crossY);ctx.lineTo(W-pR,crossY);ctx.stroke();
-      const crossP=lo+(1-(crossY-pT)/cH)*rng2;
-      const ylabel='$'+fmt(crossP);
+      const cp2=lo+(1-(crossY-pT)/cH)*rng2;
+      const yl='$'+fmt(cp2);
       ctx.font=`${isMobile?8:9}px JetBrains Mono`;
-      const yw=ctx.measureText(ylabel).width+8;
-      ctx.fillStyle='#18212f';ctx.strokeStyle='rgba(150,170,200,.4)';ctx.lineWidth=.5;
+      const yw=ctx.measureText(yl).width+8;
+      ctx.fillStyle='#18212f';ctx.strokeStyle='rgba(140,165,200,.35)';ctx.lineWidth=0.5;
       roundRect(ctx,W-pR,crossY-7,yw,14,3);ctx.fill();ctx.stroke();
       ctx.fillStyle='#dde6f4';ctx.textAlign='left';
-      ctx.fillText(ylabel,W-pR+4,crossY+4);
+      ctx.fillText(yl,W-pR+4,crossY+4);
     }
     if(cv2){
       const tip=document.getElementById('candle-tip');
       tip.style.display='block';
-      const tipX=crossX<W/2?crossX+10:crossX-130;
-      const tipY=Math.max(pT+4,Math.min((crossY||50)-60,H-130));
+      const tipX=crossX<W/2?Math.min(crossX+12,W-145):Math.max(crossX-145,4);
+      const tipY=Math.max(pT+4,Math.min((crossY||50)-70,H-140));
       tip.style.left=tipX+'px';tip.style.top=tipY+'px';
       const chgC=cv2.c-cv2.o;
-      const typeLabel=S.chartType==='heikin'?'HA':'';
       tip.innerHTML=`
-        <div style="font-size:8px;color:var(--muted);margin-bottom:3px">${typeLabel} OHLCV</div>
+        <div style="font-size:8px;color:var(--muted);margin-bottom:4px;letter-spacing:.5px">${isHA?'ХАЙКЕН-АШИ':'OHLCV'}</div>
         <div class="ct-row"><span class="ct-lbl">O</span><span class="ct-val">\$${fmt(cv2.o)}</span></div>
         <div class="ct-row"><span class="ct-lbl">H</span><span class="ct-val up">\$${fmt(cv2.h)}</span></div>
         <div class="ct-row"><span class="ct-lbl">L</span><span class="ct-val dn">\$${fmt(cv2.l)}</span></div>
