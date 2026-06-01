@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" style="background:#060a12;height:100%;overflow:hidden">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -35,18 +35,23 @@ if('serviceWorker' in navigator){
   --r:8px;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
-::-webkit-scrollbar{display:none}
+/* Only hide scrollbars visually, keep scroll working */
+*::-webkit-scrollbar{width:2px;height:2px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:#1e2d45;border-radius:2px}
 html{
-  width:100%;height:100%;
+  width:100%;
+  height:100%;
   background:#060a12;
-  /* kill iOS bounce & white overscroll */
   overscroll-behavior:none;
 }
 body{
-  width:100%;
-  /* 100dvh = dynamic viewport height, handles browser chrome correctly */
+  width:100vw;
+  height:100vh;
   height:100dvh;
-  min-height:100dvh;
+  min-height:100%;
+  margin:0;
+  padding:0;
   background:var(--bg0);
   color:var(--text);
   font-family:var(--font);
@@ -55,24 +60,46 @@ body{
   top:0;left:0;right:0;bottom:0;
   -webkit-font-smoothing:antialiased;
   overscroll-behavior:none;
-  /* Prevent pull-to-refresh */
   touch-action:pan-x pan-y;
 }
 #app{
-  width:100%;
-  height:100%;
-  display:flex;flex-direction:column;
+  /* Occupy 100% of whatever the screen is — phone, tablet, PC */
+  width:100vw;
+  height:100vh;
+  height:100dvh;
+  display:flex;
+  flex-direction:column;
   overflow:hidden;
-  /* Safe area: only bottom — top is handled by Telegram/fullscreen */
+  background:var(--bg0);
+  /* iOS notch / dynamic island */
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
   padding-left:env(safe-area-inset-left,0px);
   padding-right:env(safe-area-inset-right,0px);
 }
-/* PC full screen feel */
-@media (min-width:768px){
-  body{display:flex;align-items:center;justify-content:center;background:#02040a}
-  #app{max-width:480px;height:100dvh;border-left:1px solid #1e2d45;border-right:1px solid #1e2d45;position:relative}
+/* On wide PC screens the layout stretches full width — no centering, no max-width */
+@media (min-width:900px){
+  #header{padding:8px 28px;}
+  #nav .nav-btn{font-size:11px;padding:11px 0 9px;}
+  .dash-section{padding:12px 24px 0;}
+  #mkt-search{margin:0 24px 6px;width:calc(100% - 48px);}
+  .mkt-filter-row{padding:8px 24px 4px;}
+  #mkt-list{padding:0 24px 10px;}
+  #chart-hdr{padding:10px 24px 8px;}
+  #tf-bar{padding:6px 24px;}
+  #ind-bar{padding:4px 24px;}
+  #order-panel{padding:10px 24px 14px;}
+  #ob-wrap{padding:4px 24px 0;}
+  #port-header{padding:14px 24px;}
+  #positions-wrap{padding:10px 24px;}
+  #open-orders-wrap{padding:0 24px 10px;}
+  #news-hdr-row{padding:10px 24px 8px;}
+  #news-scroll{padding:10px 24px;}
+  #hist-stats{padding:10px 24px;}
+  #hist-list{padding:10px 24px;}
+  #ach-list{padding:12px 24px;}
+  .stat-grid{grid-template-columns:repeat(4,1fr);}
+  #heatmap{grid-template-columns:repeat(6,1fr);}
 }
  
 /* TICKER TAPE */
@@ -113,7 +140,7 @@ body{
 .screen.active{display:flex}
  
 /* ── DASHBOARD ── */
-#dash-screen{overflow-y:auto}
+#dash-screen{overflow-y:auto;-webkit-overflow-scrolling:touch}
 #dash-screen::-webkit-scrollbar{width:2px}
 #dash-screen::-webkit-scrollbar-thumb{background:var(--border2)}
 .dash-section{padding:10px 12px 0}
@@ -155,7 +182,7 @@ body{
 .filter-chip{padding:4px 12px;border-radius:20px;font-size:10px;font-weight:600;font-family:var(--font);background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);cursor:pointer;white-space:nowrap;transition:all .13s;flex-shrink:0}
 .filter-chip.active{background:rgba(0,229,184,.15);border-color:var(--accent);color:var(--accent)}
 #mkt-search{background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--font);font-size:11px;padding:7px 12px;margin:0 12px 6px;outline:none;width:calc(100% - 24px)}
-#mkt-list{flex:1;overflow-y:auto;padding:0 12px 10px}
+#mkt-list{flex:1;overflow-y:auto;padding:0 12px 10px;-webkit-overflow-scrolling:touch}
 #mkt-list::-webkit-scrollbar{width:2px}
 #mkt-list::-webkit-scrollbar-thumb{background:var(--border2)}
 .mkt-row{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);margin-bottom:5px;cursor:pointer;transition:all .13s;position:relative;overflow:hidden}
@@ -237,7 +264,7 @@ body{
 #ob-spread{color:var(--yellow);font-weight:700}
  
 /* ── PORTFOLIO ── */
-#port-screen{overflow-y:auto}
+#port-screen{overflow-y:auto;-webkit-overflow-scrolling:touch}
 #port-screen::-webkit-scrollbar{width:2px}
 #port-screen::-webkit-scrollbar-thumb{background:var(--border2)}
 #port-header{padding:12px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -277,7 +304,7 @@ body{
 #news-hdr-row{display:flex;align-items:center;padding:8px 12px 6px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0;gap:6px}
 .news-filter-btn{padding:4px 10px;border-radius:20px;font-size:9px;font-weight:700;font-family:var(--font);background:var(--bg3);border:1px solid var(--border2);color:var(--muted2);cursor:pointer;transition:all .13s;white-space:nowrap}
 .news-filter-btn.active{background:rgba(33,150,243,.18);border-color:var(--accent2);color:var(--accent2)}
-#news-scroll{flex:1;overflow-y:auto;padding:8px 12px}
+#news-scroll{flex:1;overflow-y:auto;padding:8px 12px;-webkit-overflow-scrolling:touch}
 #news-scroll::-webkit-scrollbar{width:2px}
 #news-scroll::-webkit-scrollbar-thumb{background:var(--border2)}
 .news-card{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 12px;margin-bottom:6px;cursor:pointer;transition:all .13s}
@@ -303,7 +330,7 @@ body{
 #hist-stats{display:flex;gap:6px;padding:8px 12px;background:var(--bg1);border-bottom:1px solid var(--border);flex-shrink:0}
 .hs-pill{flex:1;background:var(--bg3);border-radius:6px;padding:6px;text-align:center;border:1px solid var(--border2)}
 .hs-val{font-size:13px;font-weight:700}.hs-lbl{font-size:8px;color:var(--muted);margin-top:1px}
-#hist-list{flex:1;overflow-y:auto;padding:8px 12px}
+#hist-list{flex:1;overflow-y:auto;padding:8px 12px;-webkit-overflow-scrolling:touch}
 #hist-list::-webkit-scrollbar{width:2px}
 #hist-list::-webkit-scrollbar-thumb{background:var(--border2)}
 .h-row{display:flex;align-items:center;gap:9px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);padding:9px 11px;margin-bottom:5px}
@@ -314,7 +341,7 @@ body{
 .h-pnl{text-align:right}.h-total{font-size:11px;font-weight:700}.h-profit{font-size:10px;font-weight:700}
  
 /* ── ACHIEVEMENTS ── */
-#ach-screen{overflow-y:auto}
+#ach-screen{overflow-y:auto;-webkit-overflow-scrolling:touch}
 #ach-screen::-webkit-scrollbar{width:2px}
 #ach-screen::-webkit-scrollbar-thumb{background:var(--border2)}
 #ach-list{padding:10px 12px}
@@ -362,8 +389,8 @@ body{
 .sp{height:16px;flex-shrink:0}
 </style>
 </head>
-<body>
-<div id="app">
+<body style="background:#060a12;margin:0;padding:0;overflow:hidden">
+<div id="app" style="background:#060a12">
  
 <!-- TICKER TAPE -->
 <div id="ticker-tape"><div id="tape-inner"></div></div>
@@ -896,8 +923,6 @@ function updateUI(){
   if(currentScreen==='mkt')renderMkt();
   if(currentScreen==='port')renderPort();
   if(currentScreen==='dash')renderDash();
-  // ticker tape
-  updateTape();
 }
  
 function refreshChartPrice(){
@@ -1101,10 +1126,12 @@ function refreshChartHeader(){
  
 function setTF(tf,btn){
   S.tf=tf;
+  chartOffset=0;
+  zoomLvl=1; // reset zoom on tf change for clean view
   document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  chartOffset=0;
-  renderChart();updateIndicators();
+  renderChart();
+  updateIndicators();
 }
  
 function toggleChartType(){
@@ -1910,20 +1937,21 @@ function renderAch(){
   }).join('');
 }
  
-// ═══════════════════════════════════════════════════════
-//  TICKER TAPE
-// ═══════════════════════════════════════════════════════
+let tapeBuilt=false;
 function updateTape(){
-  const items=ASSETS.slice(0,10).map(a=>{
+  // Rebuild tape HTML (throttled — only on first call or every 10s)
+  const items=ASSETS.slice(0,12).map(a=>{
     const p=S.prices[a.ticker];
     const prev=S.prevDayPrices[a.ticker]||a.base;
     const chg=((p-prev)/prev)*100;
     const up=chg>=0;
     return `<div class="tape-item"><span class="t-name">${a.ticker}</span><span class="t-price">$${fmt(p)}</span><span class="t-chg ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(chg).toFixed(2)}%</span></div>`;
   }).join('');
-  const doubled=items+items; // duplicate for infinite scroll
-  document.getElementById('tape-inner').innerHTML=doubled;
+  // Duplicate for seamless infinite loop
+  document.getElementById('tape-inner').innerHTML=items+items;
 }
+// Rebuild tape every 8 seconds only (not every price tick)
+setInterval(updateTape, 8000);
  
 // ═══════════════════════════════════════════════════════
 //  HELPERS
@@ -1978,9 +2006,22 @@ function confetti(){
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-// Pre-gen candles
+ 
+// Restore chart type button label from saved state
+(function(){
+  const types=['candle','heikin','line'];
+  const labels=['СВЕЧИ','ХАЙКЕН-АШИ','ЛИНИЯ'];
+  const idx=types.indexOf(S.chartType||'candle');
+  const btn=document.getElementById('chart-type-btn');
+  if(btn)btn.textContent=labels[Math.max(0,idx)];
+})();
+ 
+// Pre-gen candles for key tickers/timeframes
 ASSETS.forEach(a=>['15m','1h','1d'].forEach(tf=>getCandles(a.ticker,tf)));
+ 
+// Generate initial news
 for(let i=0;i<8;i++)generateNews();
+ 
 updateTape();
 renderDash();
 renderMkt();
@@ -1988,10 +2029,27 @@ renderAch();
 checkAchievements();
 updateUI();
  
-// Resize
+// Auto-save every 30s
+setInterval(save, 30000);
+ 
+// Resize — recalc layout on window resize (important for PC fullscreen)
+let resizeTimer;
 window.addEventListener('resize',()=>{
-  if(currentScreen==='chart')renderChart();
-  if(currentScreen==='dash')drawEquity();
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{
+    if(currentScreen==='chart'){renderChart();renderOB();}
+    if(currentScreen==='dash'){drawEquity();renderDash();}
+    if(currentScreen==='mkt')renderMkt();
+    if(currentScreen==='port')renderPort();
+  },60);
+});
+ 
+// Handle visibility change: re-expand TG, refresh prices display
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden){
+    if(window.Telegram?.WebApp)try{Telegram.WebApp.expand();}catch(e){}
+    updateUI();
+  }
 });
 </script>
 </body>
